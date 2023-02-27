@@ -51,17 +51,17 @@ struct BuildOptions: ParsableArguments {
         "arm64",
         "arm64-iPhoneSimulator",
         "x86_64",
-        "arm64-catalyst",
-        "x86_64-catalyst",
-        "arm64-AppleTVOS",
-        "arm64-AppleTVSimulator",
+//        "arm64-catalyst",
+//        "x86_64-catalyst",
+//        "arm64-AppleTVOS",
+//        "arm64-AppleTVSimulator",
 //        "x86_64-AppleTVSimulator",
     ]
 }
 
 struct ConfigureOptions: ParsableArguments {
     @Option
-    var deploymentTarget = "13.0"
+    var deploymentTarget = "14.0"
     
     @Option(help: "additional options for configure script")
     var extraOptions: [String] = []
@@ -79,7 +79,7 @@ struct XCFrameworkOptions: ParsableArguments {
 
 struct DownloadOptions: ParsableArguments {
     @Option(help: "FFmpeg release")
-    var release = "snapshot"
+    var release = "5.1.2"
     
     @Option
     var url: String?
@@ -225,12 +225,20 @@ extension Tool {
                 var options: [String] {
                     [
                         "--prefix=\(installPrefix)",
-                        "--enable-cross-compile",
+                        
+                        "--disable-doc",
                         "--disable-debug",
                         "--disable-programs",
-                        "--disable-doc",
-                        "--enable-pic",
                         "--disable-audiotoolbox",
+                        "--disable-asm", // 추가
+                        "--disable-encoders", // 추가
+                        "--disable-sdl2", // 추가
+                        "--disable-securetransport", // 추가
+                        
+                        "--enable-cross-compile",
+                        "--enable-pic",
+                        "--enable-videotoolbox", // 추가
+                        
                         "--target-os=darwin",
                         "--arch=\(arch)",
                         "--cc=\(cc)",
@@ -418,7 +426,8 @@ extension Tool {
                     try installHomebrewIfNeeded()
                     
                     print("Trying to install '\(command)'...")
-                    try system("arch -x86_64 brew install \(command)")
+//                    try system("arch -x86_64 brew install \(command)")
+                    try system("brew install \(command)")
                 }
             }
             
