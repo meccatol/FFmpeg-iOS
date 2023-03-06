@@ -4,25 +4,25 @@ import PackageDescription
 
 let package = Package(
     name: "FFmpeg-iOS",
-    platforms: [.iOS(.v9)],
+    platforms: [.iOS(.v14)],
     products: [
         .library(
             name: "FFmpeg-iOS",
             targets: [
-                "avcodec", "avutil", "avformat", "avfilter", "swscale", "swresample", "Depend"]),
+                "avcodec", "avutil", "avformat", "avfilter", "avdevice", "swscale", "swresample", "Depend"]),
         .executable(name: "ffmpeg-ios", targets: ["Tool"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser", from: "0.3.0"),
     ],
     targets: [
-        .binaryTarget(name: "avcodec", url: "https://github.com/kewlbear/FFmpeg-iOS/releases/download/0.0.2/avcodec.zip", checksum: "50fc7c75f51600f49539cef20826008813ff91722fe1c2269d6fb949621e56ae"),
-        .binaryTarget(name: "avutil", url: "https://github.com/kewlbear/FFmpeg-iOS/releases/download/0.0.2/avutil.zip", checksum: "ea23b8e04c16ba47a05b2bb0b648f360ea4d7b51b527b0b3f7f502ed5ea4f1d8"),
-        .binaryTarget(name: "avformat", url: "https://github.com/kewlbear/FFmpeg-iOS/releases/download/0.0.2/avformat.zip", checksum: "b4fedd70d28deb237314490d67899578984ce638e9702459484fdc53c373b7b7"),
-        .binaryTarget(name: "avfilter", url: "https://github.com/kewlbear/FFmpeg-iOS/releases/download/0.0.2/avfilter.zip", checksum: "965b90de1324033ce2956f07e4cb05ba343af3e0a88faa09b42d263b332cb396"),
-        .binaryTarget(name: "avdevice", url: "https://github.com/kewlbear/FFmpeg-iOS/releases/download/0.0.2/avdevice.zip", checksum: "492eec13b86009b2eb1c3ff2f0a41380bda230ec3f1c1d35b97f4e660ac56b6d"),
-        .binaryTarget(name: "swscale", url: "https://github.com/kewlbear/FFmpeg-iOS/releases/download/0.0.2/swscale.zip", checksum: "6430cab90b477a0bfdf0891ab4c5ce2eb26bed27c4eb46ffc1365e37c82b179d"),
-        .binaryTarget(name: "swresample", url: "https://github.com/kewlbear/FFmpeg-iOS/releases/download/0.0.2/swresample.zip", checksum: "ff2c8e9ef5b8acac334763acc308f418bb311ab8d628122c67a7ddcc7f78b550"),
+        .binaryTarget(name: "avcodec", url: "https://github.com/meccatol/FFmpeg-iOS/releases/download/5.1.2/avcodec.zip", checksum: "40e84669e0cf655acc1b3090629238c25444b8e5134f102d278f379c01e22457"),
+        .binaryTarget(name: "avutil", url: "https://github.com/meccatol/FFmpeg-iOS/releases/download/5.1.2/avutil.zip", checksum: "3eee7fddee7272a028c1a1f8f9f895c3611866e295d7cea967a2fe1963da203b"),
+        .binaryTarget(name: "avformat", url: "https://github.com/meccatol/FFmpeg-iOS/releases/download/5.1.2/avformat.zip", checksum: "e4cc242f133340311cea986a76fb2203c4457a43b87122a27990e22abf4c02ae"),
+        .binaryTarget(name: "avfilter", url: "https://github.com/meccatol/FFmpeg-iOS/releases/download/5.1.2/avfilter.zip", checksum: "f8fe52f87ac9b18307dea0a02844ab96421b95b16d1b5bdcd71fdd84604d2671"),
+        .binaryTarget(name: "avdevice", url: "https://github.com/meccatol/FFmpeg-iOS/releases/download/5.1.2/avdevice.zip", checksum: "fd7b4a837714d5b0ca59cc1f6d47702872ff6b3a92cb643377e6df56c8bb38e6"),
+        .binaryTarget(name: "swscale", url: "https://github.com/meccatol/FFmpeg-iOS/releases/download/5.1.2/swscale.zip", checksum: "fbbc1dad73a006b9f6accd238c0d385d69316596feeb5b1dee62b77f04462843"),
+        .binaryTarget(name: "swresample", url: "https://github.com/meccatol/FFmpeg-iOS/releases/download/5.1.2/swresample.zip", checksum: "95c23cba79cbe6361e7f78d18e69e3a2d8ac08cb15e025ebe7054ae19aab072c"),
         .target(name: "Tool", dependencies: [
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
         ]),
