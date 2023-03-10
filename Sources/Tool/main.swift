@@ -153,7 +153,8 @@ extension Tool {
                 
                 configureOptions.extraOptions += ["--enable-libx264", "--enable-gpl",]
             }
-
+            
+            // build FFmpeg
             try build(lib: sourceOptions.lib, sourceDirectory: sourceOptions.sourceURL.path)
             
             if !disableXcframework {
@@ -232,12 +233,15 @@ extension Tool {
                         "--disable-audiotoolbox",
                         "--disable-asm", // 추가
                         "--disable-encoders", // 추가
-                        "--disable-sdl2", // 추가
-                        "--disable-securetransport", // 추가
+                        "--disable-sdl2", // 추가 Simple DirectMedia Layer
+//                        "--disable-securetransport", // 추가
+                        "--disable-static", // 추가, enable-shared 만으로는 dynamic library를 만들어주지 않는다
                         
+//                        "--enable-openssl", // 추가
+                        "--enable-shared", // 추가
+                        "--enable-videotoolbox", // 추가
                         "--enable-cross-compile",
                         "--enable-pic",
-                        "--enable-videotoolbox", // 추가
                         
                         "--target-os=darwin",
                         "--arch=\(arch)",
@@ -538,8 +542,19 @@ extension Tool {
         func run() throws {
             let lib = URL(fileURLWithPath: buildOptions.buildDirectory).appendingPathComponent("install").appendingPathComponent(sourceOptions.lib)
             let contents = try FileManager.default.contentsOfDirectory(at: lib.appendingPathComponent(buildOptions.arch[0]).appendingPathComponent("lib"), includingPropertiesForKeys: nil, options: [])
-            let modules = contents.filter { $0.pathExtension == "a" }.map { $0.deletingPathExtension().lastPathComponent.replacingOccurrences(of: "lib", with: "") }
-
+            let candidateModules = contents.filter { $0.pathExtension == "dylib" }.map { $0.deletingPathExtension().lastPathComponent.replacingOccurrences(of: "lib", with: "") }
+            let predefinedModule = ["avcodec", "avdevice", "avfilter", "avformat", "avutil", "swresample", "swscale"]
+            
+            var modules: [String] = []
+            for pm in predefinedModule {
+                if candidateModules.contains(pm) {
+                    modules.append(pm)
+                    continue
+                }
+            }
+            
+            print("modules = \(modules)")
+            
             for library in modules {
                 func convert(_ arch: String) -> String {
                     let array = arch.split(separator: "-")
@@ -577,11 +592,11 @@ extension Tool {
                     let xcf = "\(buildOptions.buildDirectory)/xcf/\(sdk)"
                     try createDirectory(at: xcf)
                     
-                    let fat = "\(xcf)/lib\(library).a"
+                    let fat = "\(xcf)/lib\(library).dylib"
 
                     try launch(launchPath: "/usr/bin/lipo",
                                arguments:
-                                set.map { arch in "\(lib.path)/\(arch)/lib/lib\(library).a" }
+                                set.map { arch in "\(lib.path)/\(arch)/lib/lib\(library).dylib" }
                                 + [
                                     "-create",
                                     "-output",
