@@ -14,6 +14,7 @@ struct Tool: ParsableCommand {
         abstract: "Build FFmpeg libraries for iOS as xcframeworks",
         subcommands: [
             BuildCommand.self,
+            RPathCommand.self,
             XCFrameworkCommand.self,
             ModuleCommand.self,
             FatCommand.self,
@@ -39,7 +40,7 @@ struct SourceOptions: ParsableArguments {
     }
     
     @Argument(help: "ffmpeg, fdk-aac, lame or x264")
-    var lib = "ffmpeg"
+    var lib = "FFmpeg"
 }
 
 struct BuildOptions: ParsableArguments {
@@ -51,7 +52,7 @@ struct BuildOptions: ParsableArguments {
         "arm64",
         "arm64-iPhoneSimulator",
         "x86_64",
-//        "arm64-catalyst",
+        "arm64-catalyst",
 //        "x86_64-catalyst",
 //        "arm64-AppleTVOS",
 //        "arm64-AppleTVSimulator",
@@ -113,14 +114,16 @@ extension Tool {
         @Flag(help: "enable MP3 encoding via libmp3lame")
         var enableLibmp3lame = false
         
+        var isDynamic: Bool = true
+        
         @Flag(help: "Create fat library instead of .xcframework")
         var disableXcframework = false
         
         @Flag
         var disableModule = false
         
-        @Flag
-        var disableZip = false
+//        @Flag
+        var disableZip = true
         
         @OptionGroup var sourceOptions: SourceOptions
         @OptionGroup var buildOptions: BuildOptions
@@ -157,6 +160,14 @@ extension Tool {
             // build FFmpeg
             try build(lib: sourceOptions.lib, sourceDirectory: sourceOptions.sourceURL.path)
             
+            if isDynamic {
+                var rPathCommand = RPathCommand()
+                rPathCommand.buildOptions = buildOptions
+                rPathCommand.libraryOptions = libraryOptions
+                rPathCommand.sourceOptions = sourceOptions
+                try rPathCommand.run()
+            }
+            
             if !disableXcframework {
                 print("building xcframeworks...")
                 var createXcframeworks = XCFrameworkCommand()
@@ -175,7 +186,7 @@ extension Tool {
                     modularize.sourceOptions = sourceOptions
                     try modularize.run()
                 }
-                
+
                 if !disableZip {
                     print("zipping...")
                     var zip = ZipCommand()
@@ -195,7 +206,7 @@ extension Tool {
             print("Done")
         }
         
-        func build(lib: String, sourceDirectory: String) throws {
+        mutating func build(lib: String, sourceDirectory: String) throws {
             if !FileManager.default.fileExists(atPath: sourceDirectory) {
                 print("\(lib) source not found. Trying to download...")
                 var downloadSource = SourceCommand()
@@ -206,7 +217,7 @@ extension Tool {
             }
             
             switch lib {
-            case "ffmpeg":
+            case "FFmpeg":
                 try buildFFmpeg(sourceDirectory: sourceDirectory)
             case "fdk-aac":
                 try buildFdkAac(sourceDirectory: sourceDirectory)
@@ -219,7 +230,8 @@ extension Tool {
             }
         }
         
-        func buildFFmpeg(sourceDirectory: String) throws {
+        mutating func buildFFmpeg(sourceDirectory: String) throws {
+            print("buildFFmpeg")
             class FFmpegConfiguration: ConfigurationHelper, Configuration {
                 override var `as`: String { "gas-preprocessor.pl \(aarch64) -- \(cc)" }
                 
@@ -232,13 +244,13 @@ extension Tool {
                         "--disable-programs",
                         "--disable-audiotoolbox",
                         "--disable-asm", // 추가
-                        "--disable-encoders", // 추가
+                        "--disable-encoders", // 추가, 인코더 제거
                         "--disable-sdl2", // 추가 Simple DirectMedia Layer
-//                        "--disable-securetransport", // 추가
-                        "--disable-static", // 추가, enable-shared 만으로는 dynamic library를 만들어주지 않는다
+//                        "--disable-securetransport", // 제거
+                        "--disable-muxers", // 추가, 먹서 제거
                         
 //                        "--enable-openssl", // 추가
-                        "--enable-shared", // 추가
+                        "--enable-small", // 추가
                         "--enable-videotoolbox", // 추가
                         "--enable-cross-compile",
                         "--enable-pic",
@@ -268,6 +280,9 @@ extension Tool {
                     ]
                 default:
                     platformOptions = []
+                }
+                if isDynamic {
+                    configureOptions.extraOptions = configureOptions.extraOptions + (isDynamic ? ["--disable-static", "--enable-shared"] : [])
                 }
                 return $0.options
                     + configureOptions.extraOptions
@@ -458,7 +473,7 @@ extension Tool {
         
         var defaultURL: String {
             switch sourceOptions.lib {
-            case "ffmpeg":
+            case "FFmpeg":
                 return "http://www.ffmpeg.org/releases/ffmpeg-\(downloadOptions.release).tar.bz2"
             case "fdk-aac":
                 return "https://sourceforge.net/projects/opencore-amr/files/latest/download"
@@ -528,8 +543,75 @@ extension Tool {
         }
     }
     
+    struct RPathCommand: ParsableCommand {
+        static var configuration = CommandConfiguration(commandName: "rpath", abstract: "rename rpath")
+        
+        @OptionGroup var libraryOptions: LibraryOptions
+        
+        @OptionGroup var buildOptions: BuildOptions
+
+        @OptionGroup var sourceOptions: SourceOptions
+        
+        mutating func run() throws {
+            let lib = URL(fileURLWithPath: buildOptions.buildDirectory).appendingPathComponent("install").appendingPathComponent(sourceOptions.lib)
+            
+            for arch in buildOptions.arch {
+                let libContentPath = lib.appendingPathComponent(arch).appendingPathComponent("lib").absoluteString.replacingOccurrences(of: "file://", with: "")
+                print("libContentPath = \(libContentPath)")
+                
+                // replacement DYLIB to @rpath
+                try system("""
+                        DYLIBS=$(find \(libContentPath) -name "*.dylib")
+                        
+                        for dylib in $DYLIBS; do
+                          if [ -L $dylib ]; then
+                            continue
+                          fi
+                        
+                          dylibName=$(basename $dylib | cut -f 1 -d '.')
+                          echo "target dylibName = $dylibName"
+                        
+                          install_name_tool -id "@rpath/$dylibName.dylib" "$(otool -D $dylib | awk 'NR>1 {print $1}')"
+                            
+                          DEPENDENCIES=$(otool -L $dylib | awk 'NR>1 {print $1}' | grep -v "^@")
+                          
+                          for dep in $DEPENDENCIES; do
+                            if echo "$dep" | grep -q \(libContentPath); then
+                                DEP_NAME=$(basename $dep | cut -f 1 -d '.')
+                                
+                                NEW_PATH="@rpath/$DEP_NAME.dylib"
+                                install_name_tool -change $dep $NEW_PATH $dylib
+                                echo "Changed $dep to $NEW_PATH in $dylib"
+                            else
+                                echo "It's not ffmpeg dependency, $(basename $dep)"
+                            fi
+                          done
+                        done
+                        """)
+                
+                // flatting, rm symlink and removing version string from lib name
+                try system("""
+                DYLIBS=$(find \(libContentPath) -name "*.dylib")
+
+                for dylib in $DYLIBS; do
+                  if [ -L $dylib ]; then
+                    rm $dylib
+                    echo "Removed symlink: $dylib"
+                  else
+                    LIBRARY_NAME=$(echo $(basename $dylib) | sed -E 's/\\.[0-9]+\\.[0-9]+\\.[0-9]+\\.dylib/.dylib/')
+                    mv $dylib ${dylib%/*}/$LIBRARY_NAME
+                    echo "Renamed $dylib to $LIBRARY_NAME"
+                  fi
+                done
+                """)
+            }
+        }
+    }
+    
     struct XCFrameworkCommand: ParsableCommand {
         static var configuration = CommandConfiguration(commandName: "framework", abstract: "Create .xcframework")
+        
+        var isDynamic: Bool = false
         
         @OptionGroup var libraryOptions: LibraryOptions
         
@@ -542,16 +624,27 @@ extension Tool {
         func run() throws {
             let lib = URL(fileURLWithPath: buildOptions.buildDirectory).appendingPathComponent("install").appendingPathComponent(sourceOptions.lib)
             let contents = try FileManager.default.contentsOfDirectory(at: lib.appendingPathComponent(buildOptions.arch[0]).appendingPathComponent("lib"), includingPropertiesForKeys: nil, options: [])
-            let candidateModules = contents.filter { $0.pathExtension == "dylib" }.map { $0.deletingPathExtension().lastPathComponent.replacingOccurrences(of: "lib", with: "") }
-            let predefinedModule = ["avcodec", "avdevice", "avfilter", "avformat", "avutil", "swresample", "swscale"]
+//            print("contents = \(contents)")
             
-            var modules: [String] = []
-            for pm in predefinedModule {
-                if candidateModules.contains(pm) {
-                    modules.append(pm)
-                    continue
-                }
-            }
+            var contentsStringSet = Set<String>()
+            contents
+                .filter { $0.pathExtension == "dylib" }
+                .map { $0.resolvingSymlinksInPath() }
+                .map { $0.deletingPathExtension().lastPathComponent.replacingOccurrences(of: "lib", with: "") }
+                .forEach { contentsStringSet.insert($0) }
+            
+            let modules: [String] = Array<String>(contentsStringSet)
+            
+//            print("contentsStringSet = \(contentsStringSet)")
+//            print("nameResult = \(contentsStringSet.compactMap { $0.components(separatedBy: ".").first })")
+            
+//            let predefinedModule = ["avcodec", "avdevice", "avfilter", "avformat", "avutil", "swresample", "swscale"]
+//            for pm in predefinedModule {
+//                if contentsStringSet.contains(pm) {
+//                    modules.append(pm)
+//                    continue
+//                }
+//            }
             
             print("modules = \(modules)")
             
@@ -583,6 +676,8 @@ extension Tool {
                 
                 var args: [String] = []
 
+                let libraryNameWithoutVersion = library.components(separatedBy: ".").first!
+                
                 for (sdk, set) in dict {
                     guard let arch = set.first else {
                         fatalError()
@@ -592,7 +687,7 @@ extension Tool {
                     let xcf = "\(buildOptions.buildDirectory)/xcf/\(sdk)"
                     try createDirectory(at: xcf)
                     
-                    let fat = "\(xcf)/lib\(library).dylib"
+                    let fat = "\(xcf)/lib\(libraryNameWithoutVersion).dylib"
 
                     try launch(launchPath: "/usr/bin/lipo",
                                arguments:
@@ -605,13 +700,13 @@ extension Tool {
 
                     let include: String
                     if modules.count > 1 {
-                        include = "\(xcf)/\(library)/include"
+                        include = "\(xcf)/\(libraryNameWithoutVersion)/include"
                         try removeItem(at: include)
                         try createDirectory(at: include)
                         
-                        let copy = "\(include)/lib\(library)"
+                        let copy = "\(include)/lib\(libraryNameWithoutVersion)"
                         try removeItem(at: copy)
-                        try copyItem(at: "\(dir)/include/lib\(library)", to: copy)
+                        try copyItem(at: "\(dir)/include/lib\(libraryNameWithoutVersion)", to: copy)
                     } else {
                         include = "\(dir)/include"
                     }
@@ -622,7 +717,7 @@ extension Tool {
                     ]
                 }
                 
-                let output = "\(xcframeworkOptions.frameworks)/\(library).xcframework"
+                let output = "\(xcframeworkOptions.frameworks)/\(libraryNameWithoutVersion).xcframework"
                 
                 try removeItem(at: output)
                 
@@ -666,7 +761,20 @@ extension Tool {
         func run() throws {
             let lib = URL(fileURLWithPath: buildOptions.buildDirectory).appendingPathComponent("install").appendingPathComponent(sourceOptions.lib)
             let contents = try FileManager.default.contentsOfDirectory(at: lib.appendingPathComponent(buildOptions.arch[0]).appendingPathComponent("lib"), includingPropertiesForKeys: nil, options: [])
-            let modules = contents.filter { $0.pathExtension == "a" }.map { $0.deletingPathExtension().lastPathComponent.replacingOccurrences(of: "lib", with: "") }
+//            print("contents = \(contents)")
+            
+            var contentsStringSet = Set<String>()
+            contents
+                .filter { $0.pathExtension == "dylib" }
+                .map { $0.resolvingSymlinksInPath() }
+                .map { $0.deletingPathExtension().lastPathComponent.replacingOccurrences(of: "lib", with: "") }
+                .forEach { contentsStringSet.insert($0) }
+            
+            let modules: [String] = Array<String>(contentsStringSet.compactMap { $0.components(separatedBy: ".").first })
+            
+//            let lib = URL(fileURLWithPath: buildOptions.buildDirectory).appendingPathComponent("install").appendingPathComponent(sourceOptions.lib)
+//            let contents = try FileManager.default.contentsOfDirectory(at: lib.appendingPathComponent(buildOptions.arch[0]).appendingPathComponent("lib"), includingPropertiesForKeys: nil, options: [])
+//            let modules = contents.filter { $0.pathExtension == "a" }.map { $0.deletingPathExtension().lastPathComponent.replacingOccurrences(of: "lib", with: "") }
             
             for library in modules {
                 let path = "\(xcframeworkOptions.frameworks)/\(library).xcframework"
