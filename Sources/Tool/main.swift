@@ -80,7 +80,7 @@ struct XCFrameworkOptions: ParsableArguments {
 
 struct DownloadOptions: ParsableArguments {
     @Option(help: "FFmpeg release")
-    var release = "5.1.2"
+    var release = "6.0"
     
     @Option
     var url: String?
@@ -243,17 +243,22 @@ extension Tool {
                         "--disable-debug",
                         "--disable-programs",
                         "--disable-audiotoolbox",
-                        "--disable-asm", // 추가
-                        "--disable-encoders", // 추가, 인코더 제거
-                        "--disable-sdl2", // 추가 Simple DirectMedia Layer
-//                        "--disable-securetransport", // 제거
-                        "--disable-muxers", // 추가, 먹서 제거
                         
-//                        "--enable-openssl", // 추가
-                        "--enable-small", // 추가
-                        "--enable-videotoolbox", // 추가
+                        // AOS와 통일
+                        "--disable-static",
+                        "--disable-ffprobe",
+                        "--disable-ffplay",
+                        "--disable-ffmpeg",
+                        "--disable-symver",
+                        "--disable-stripping",
+                        "--disable-vulkan",
+                        "--disable-muxers",
+                        "--disable-encoders",
+                        "--disable-avdevice",
+                        "--disable-filters",
+                        
+                        "--enable-filter=atempo,aresample",
                         "--enable-cross-compile",
-                        "--enable-pic",
                         
                         "--target-os=darwin",
                         "--arch=\(arch)",
