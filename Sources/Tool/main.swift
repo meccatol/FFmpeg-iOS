@@ -50,9 +50,9 @@ struct BuildOptions: ParsableArguments {
     @Option(help: "architectures to include")
     var arch = [
         "arm64",
-        "arm64-iPhoneSimulator",
-        "x86_64",
-        "arm64-catalyst",
+//        "arm64-iPhoneSimulator",
+//        "x86_64",
+//        "arm64-catalyst",
 //        "x86_64-catalyst",
 //        "arm64-AppleTVOS",
 //        "arm64-AppleTVSimulator",
@@ -257,9 +257,11 @@ extension Tool {
                         "--disable-encoders",
                         "--disable-avdevice",
                         "--disable-filters",
+                        "--disable-xlib",
 
                         "--enable-filter=atempo,aresample",
                         "--enable-cross-compile",
+                        "--enable-libdav1d",
 
                         "--target-os=darwin",
                         "--arch=\(arch)",
@@ -1052,7 +1054,8 @@ class ConfigurationHelper {
         case "iPhoneSimulator":
             cFlags.append(" -mios-simulator-version-min=\(deploymentTarget)")
         case "iPhoneOS":
-            cFlags.append(" -mios-version-min=\(deploymentTarget) -fembed-bitcode")
+//            cFlags.append(" -mios-version-min=\(deploymentTarget) -fembed-bitcode")
+            cFlags.append(" -mios-version-min=\(deploymentTarget)")
         case "MacOSX":
             cFlags.append(" -mios-version-min=\(deploymentTarget) -target \(arch)-apple-ios-macabi")
         case "AppleTVOS":
