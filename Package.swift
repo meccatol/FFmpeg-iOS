@@ -10,10 +10,10 @@ let package = Package(
 //            name: "FFmpeg-iOS",
 ////            targets: ["avcodec", "avutil", "avformat", "avfilter", "avdevice", "swscale", "swresample", "Depend"]),
 //            targets: ["Depend"]),
-        .executable(name: "ffmpeg-ios", targets: ["Tool"])
+        .executable(name: "ffmpeg", targets: ["Tool"])
     ],
     dependencies: [
-        .package(url: "https://github.com/apple/swift-argument-parser", from: "0.3.0"),
+        .package(url: "https://github.com/apple/swift-argument-parser", from: "1.0.0"),
     ],
     targets: [
 //        .binaryTarget(name: "avcodec", url: "https://github.com/meccatol/FFmpeg-iOS/releases/download/5.1.2/avcodec.zip", checksum: "75b734831414a0ee83b54f6e9848938f145469b2acbd93ac79be56e5427c6d74"),

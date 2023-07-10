@@ -4,6 +4,9 @@
 /*.xcodeproj
 xcuserdata/
 
-build/**
+build_ios/**
+build_macos/**
 ffmpeg/**
 Frameworks/**
+dav1d/**
+dav1d_test/**
