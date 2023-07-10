@@ -22,6 +22,7 @@ struct Tool: ParsableCommand {
             SourceCommand.self,
             ZipCommand.self,
 //            Clean.self,
+            TeslaPatchCommmand.self,
         ],
         defaultSubcommand: BuildCommand.self)
 }
@@ -156,6 +157,9 @@ extension Tool {
 
                 configureOptions.extraOptions += ["--enable-libx264", "--enable-gpl",]
             }
+
+            // Patch tesla's avcodec patch
+            try TeslaPatchCommmand().run()
 
             // build FFmpeg
             try build(lib: sourceOptions.lib, sourceDirectory: sourceOptions.sourceURL.path)
@@ -881,6 +885,49 @@ extension Tool {
     struct Clean: ParsableCommand {
         func run() throws {
             // FIXME: ...
+        }
+    }
+
+    struct TeslaPatchCommmand: ParsableCommand {
+        func run() throws {
+            do {
+                let teslaPatch = "avcodec.c.patch"
+                let sourceFile = "FFmpeg/libavcodec/avcodec.c"
+                let patch   = try readCurrentDirectoryFile(fileName: teslaPatch)
+                let source  = try readCurrentDirectoryFile(fileName: sourceFile)
+                let patched = try appendIfNotAlreadyAppended(a: source, b: patch)
+                try writeStringToFile(string: patched, relativePath: sourceFile)
+            }
+        }
+
+        func readCurrentDirectoryFile(fileName: String) throws -> String {
+            do {
+                let currentDirectoryURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+                let fileURL = currentDirectoryURL.appendingPathComponent(fileName)
+                let fileContent = try String(contentsOf: fileURL, encoding: .utf8)
+                return fileContent
+            } catch {
+                print("Error reading file content: \(error)")
+            }
+            return ""
+        }
+
+        func appendIfNotAlreadyAppended(a: String, b: String) throws -> String {
+            if a.hasSuffix(b) {
+                return a
+            } else {
+                return a + b
+            }
+        }
+
+        func writeStringToFile(string: String, relativePath: String) throws {
+            do {
+                let fileURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(relativePath)
+                try string.write(to: fileURL, atomically: true, encoding: .utf8)
+                print("String written to file successfully.")
+            } catch {
+                print("Error writing string to file: \(error)")
+            }
         }
     }
 }
