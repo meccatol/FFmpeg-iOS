@@ -10,17 +10,17 @@ import Foundation
 
 struct Tool: ParsableCommand {
     static var configuration = CommandConfiguration(
-        commandName: "ffmpeg-ios",
-        abstract: "Build FFmpeg libraries for iOS as xcframeworks",
+        commandName: "ffmpeg",
+        abstract: "Build FFmpeg libraries for iOS & MacOS as xcframeworks",
         subcommands: [
             BuildCommand.self,
             RPathCommand.self,
             XCFrameworkCommand.self,
-            ModuleCommand.self,
-            FatCommand.self,
+//            ModuleCommand.self,
+//            FatCommand.self,
             DepCommand.self,
             SourceCommand.self,
-            ZipCommand.self,
+//            ZipCommand.self,
 //            Clean.self,
         ],
         defaultSubcommand: BuildCommand.self)
@@ -39,30 +39,69 @@ struct SourceOptions: ParsableArguments {
         FileManager.default.fileExists(atPath: sourceURL.appendingPathComponent("configure").path)
     }
 
-    @Argument(help: "ffmpeg, fdk-aac, lame or x264")
+    @Argument(help: "ffmpeg, dav1d")
     var lib = "FFmpeg"
 }
 
-struct BuildOptions: ParsableArguments {
-    @Option(help: "directory to contain build artifacts")
-    var buildDirectory = "./build"
+enum BuildTarget: String, ExpressibleByArgument, CaseIterable {
+    case ios
+    case macos
+}
 
+struct BuildOptions: ParsableArguments {
+    
+    @Option(help: "build target")
+    var buildTarget: BuildTarget = .ios {
+        didSet {
+            switch buildTarget {
+            case .ios:
+                buildDirectory = "./build_ios"
+                arch = ["arm64-iPhoneOS"]
+            case .macos:
+                buildDirectory = "./build_macos"
+                arch = [
+                    "arm64-MacOSX",
+                    "x86_64-MacOSX"
+                ]
+            }
+        }
+    }
+    
+    @Option(help: "directory to contain build artifacts")
+    var buildDirectory: String = ""
+    
     @Option(help: "architectures to include")
-    var arch = [
-        "arm64",
-//        "arm64-iPhoneSimulator",
-//        "x86_64",
-//        "arm64-catalyst",
-//        "x86_64-catalyst",
-//        "arm64-AppleTVOS",
-//        "arm64-AppleTVSimulator",
-//        "x86_64-AppleTVSimulator",
-    ]
+    var arch: [String] = []
+    
+    var dav1d_install_prefix_path: String = "dav1d"
+    
+//    var arch = [
+//        "arm64",
+////        "arm64-iPhoneSimulator",
+////        "x86_64",
+////        "arm64-MacOSX",
+////        "x86_64-MacOSX",
+////        "arm64-AppleTVOS",
+////        "arm64-AppleTVSimulator",
+////        "x86_64-AppleTVSimulator",
+//    ]
 }
 
 struct ConfigureOptions: ParsableArguments {
+    @Option(help: "build target")
+    var configurationTarget: BuildTarget = .ios {
+        didSet {
+            switch configurationTarget {
+            case .ios:
+                deploymentTarget = "14.0"
+            case .macos:
+                deploymentTarget = "11.0.0"
+            }
+        }
+    }
+    
     @Option
-    var deploymentTarget = "14.0"
+    var deploymentTarget: String = "14.0"
 
     @Option(help: "additional options for configure script")
     var extraOptions: [String] = []
@@ -82,131 +121,112 @@ struct DownloadOptions: ParsableArguments {
     @Option(help: "FFmpeg release")
     var release = "6.0"
 
+    @Option(help: "dav1d version")
+    var dav1d_version = "1.2.1"
+    
     @Option
     var url: String?
-}
-
-struct FdkAacOptions: ParsableArguments {
-    @Option
-    var fdkAacSource = "./fdk-aac-2.0.1"
-}
-
-struct X264Options: ParsableArguments {
-    @Option
-    var x264Source = "./x264-master"
-}
-
-struct LameOptions: ParsableArguments {
-    @Option
-    var lameSource = "./lame-3.100"
 }
 
 extension Tool {
     struct BuildCommand: ParsableCommand {
         static var configuration = CommandConfiguration(commandName: "build", abstract: "Build framework module")
-
-        @Flag(help: "enable AAC de/encoding via libfdk-aac")
-        var enableLibfdkAac = false
-
-        @Flag(help: "enable H.264 encoding via x264")
-        var enableLibx264 = false
-
-        @Flag(help: "enable MP3 encoding via libmp3lame")
-        var enableLibmp3lame = false
-
+        
         var isDynamic: Bool = true
-
+        
         @Flag(help: "Create fat library instead of .xcframework")
         var disableXcframework = false
-
-        @Flag
-        var disableModule = false
-
+        
 //        @Flag
         var disableZip = true
-
+        
         @OptionGroup var sourceOptions: SourceOptions
         @OptionGroup var buildOptions: BuildOptions
         @OptionGroup var libraryOptions: LibraryOptions
         @OptionGroup var configureOptions: ConfigureOptions
         @OptionGroup var downloadOptions: DownloadOptions
         @OptionGroup var xcframeworkOptions: XCFrameworkOptions
-        @OptionGroup var fatLibraryOptions: FatLibraryOptions
-        @OptionGroup var fdkAacOptions: FdkAacOptions
-        @OptionGroup var x264Options: X264Options
-        @OptionGroup var lameOptions: LameOptions
 
         mutating func run() throws {
             try DepCommand().run()
-
-            if enableLibfdkAac {
-                try build(lib: "fdk-aac", sourceDirectory: "./fdk-aac")
-
-                configureOptions.extraOptions += ["--enable-libfdk-aac", "--enable-nonfree",]
+            
+//            for buildTarget in BuildTarget.allCases {
+//
+//                self.buildOptions.buildTarget = buildTarget
+//                self.configureOptions.configurationTarget = buildTarget
+//
+//                print("building target = \(buildTarget)...")
+//                // build FFmpeg
+//                try build(lib: sourceOptions.lib, sourceDirectory: sourceOptions.sourceURL.path)
+//
+//                if isDynamic {
+//                    var rPathCommand = RPathCommand()
+//                    rPathCommand.buildOptions = buildOptions
+//                    rPathCommand.libraryOptions = libraryOptions
+//                    rPathCommand.sourceOptions = sourceOptions
+//                    try rPathCommand.run()
+//                }
+//            }
+            
+            // ************************ ios build ************************
+            // ios - arm64
+//            print("building target = ios_arm64...")
+//            self.buildOptions.buildTarget = .ios
+//            self.configureOptions.configurationTarget = .ios
+//
+//            // build dav1d
+////            try build(lib: "dav1d", sourceDirectory: "./dav1d")
+//
+//            // build FFmpeg
+//            try build(lib: sourceOptions.lib, sourceDirectory: sourceOptions.sourceURL.path)
+//
+//            if isDynamic {
+//                var rPathCommand = RPathCommand()
+//                rPathCommand.buildOptions = buildOptions
+//                rPathCommand.libraryOptions = libraryOptions
+//                rPathCommand.sourceOptions = sourceOptions
+//                try rPathCommand.run()
+//            }
+            // mac - arm64
+            
+            // ************************ mac build ************************
+            
+            print("building target = x86_64...")
+            
+            self.buildOptions.buildTarget = .macos
+            self.buildOptions.arch = ["x86_64-MacOSX"]
+            self.configureOptions.configurationTarget = .macos
+            
+            for archx in self.buildOptions.arch {
+                // build dav1d
+                let dav1dPackageConfigPath = try buildDav1dAndGetPackageConfigPath(sourceDirectory: "./dav1d", archx: archx)
+                
+                // build FFmpeg
+//                try buildFFmpeg(sourceDirectory: sourceOptions.sourceURL.path, additionalEnvironment: ["PKG_CONFIG_PATH": "\(URL(fileURLWithPath: ".").path)/dav1d/build_mac_x86/ff_build:$PKG_CONFIG_PATH"])
+                
+//                if isDynamic {
+//                    var rPathCommand = RPathCommand()
+//                    rPathCommand.buildOptions = buildOptions
+//                    rPathCommand.libraryOptions = libraryOptions
+//                    rPathCommand.sourceOptions = sourceOptions
+//                    try rPathCommand.run()
+//                }
             }
-
-            if enableLibmp3lame {
-                try build(lib: "lame", sourceDirectory: "./lame")
-
-                configureOptions.extraOptions += ["--enable-libmp3lame",]
-            }
-
-            if enableLibx264 {
-                try build(lib: "x264", sourceDirectory: "./x264")
-
-                configureOptions.extraOptions += ["--enable-libx264", "--enable-gpl",]
-            }
-
-            // build FFmpeg
-            try build(lib: sourceOptions.lib, sourceDirectory: sourceOptions.sourceURL.path)
-
-            if isDynamic {
-                var rPathCommand = RPathCommand()
-                rPathCommand.buildOptions = buildOptions
-                rPathCommand.libraryOptions = libraryOptions
-                rPathCommand.sourceOptions = sourceOptions
-                try rPathCommand.run()
-            }
-
-            if !disableXcframework {
-                print("building xcframeworks...")
-                var createXcframeworks = XCFrameworkCommand()
-                createXcframeworks.buildOptions = buildOptions
-                createXcframeworks.libraryOptions = libraryOptions
-                createXcframeworks.xcframeworkOptions = xcframeworkOptions
-                createXcframeworks.sourceOptions = sourceOptions
-                try createXcframeworks.run()
-
-                if !disableModule {
-                    print("modularizing...")
-                    var modularize = ModuleCommand()
-                    modularize.buildOptions = buildOptions
-                    modularize.libraryOptions = libraryOptions
-                    modularize.xcframeworkOptions = xcframeworkOptions
-                    modularize.sourceOptions = sourceOptions
-                    try modularize.run()
-                }
-
-                if !disableZip {
-                    print("zipping...")
-                    var zip = ZipCommand()
-                    zip.xcframeworkOptions = xcframeworkOptions
-                    try zip.run()
-                }
-            } else {
-                print("building fat binaries...")
-                var fatCommand = FatCommand()
-                fatCommand.buildOptions = buildOptions
-                fatCommand.fatLibraryOptions = fatLibraryOptions
-                fatCommand.libraryOptions = libraryOptions
-                fatCommand.sourceOptions = sourceOptions
-                try fatCommand.run()
-            }
-
+            
+//            print("building xcframeworks...")
+//            var createXcframeworks = XCFrameworkCommand()
+//            createXcframeworks.buildOptions = buildOptions
+//            createXcframeworks.libraryOptions = libraryOptions
+//            createXcframeworks.xcframeworkOptions = xcframeworkOptions
+//            createXcframeworks.sourceOptions = sourceOptions
+//            try createXcframeworks.run()
+            
             print("Done")
         }
-
-        mutating func build(lib: String, sourceDirectory: String) throws {
+        
+        mutating func checkSource(lib: String, sourceDirectory: String) throws {
+            sourceOptions.lib = lib
+            
             if !FileManager.default.fileExists(atPath: sourceDirectory) {
                 print("\(lib) source not found. Trying to download...")
                 var downloadSource = SourceCommand()
@@ -215,36 +235,106 @@ extension Tool {
                 downloadSource.downloadOptions = downloadOptions
                 try downloadSource.run()
             }
+        }
+        
+        mutating func buildDav1dAndGetPackageConfigPath(sourceDirectory: String, archx: String) throws -> String {
+            let libName = "dav1d"
+            try checkSource(lib: libName, sourceDirectory: sourceDirectory)
+            
+            print("buildDav1d")
+            
+            let crossCompileDir = URL(fileURLWithPath: ".")
+                .appendingPathComponent("DependencyLibrary")
+                .appendingPathComponent("dav1d_crossfiles")
+            let dav1dBuildDir = URL(fileURLWithPath: ".").appendingPathComponent(libName)
 
-            switch lib {
-            case "FFmpeg":
-                try buildFFmpeg(sourceDirectory: sourceDirectory)
-            case "fdk-aac":
-                try buildFdkAac(sourceDirectory: sourceDirectory)
-            case "lame":
-                try buildLame(sourceDirectory: sourceDirectory)
-            case "x264":
-                try buildX264(sourceDirectory: sourceDirectory)
-            default:
+            print("building \(archx)...")
+            let array = archx.split(separator: "-")
+            
+            // ex) x86_64-MacOSX
+            guard array.count == 2 else {
                 throw ExitCode.failure
             }
+            let _arch = String(array[0])
+            let _platform = String(array[1]).lowercased()
+            
+            let sdkArchName = "\(_platform)_\(_arch)"
+            let sdkArchBuildDir = dav1dBuildDir.appendingPathComponent("build_\(sdkArchName)")
+            
+            try removeItem(at: sdkArchBuildDir.path)
+            try createDirectory(at: sdkArchBuildDir.path)
+            
+            let crossCompileOptionPath = crossCompileDir.appendingPathComponent("\(sdkArchName).txt").path
+            
+            try launch(launchPath: try whichPath("meson"),
+                       arguments: ["setup", "--cross-file=\(escapeShellArgument(crossCompileOptionPath))", "--debug", "--buildtype release"],
+                       currentDirectoryPath: sdkArchBuildDir.path,
+                       environment: nil)
+            
+            try launch(launchPath: try whichPath("ninja"),
+                       arguments: [],
+                       currentDirectoryPath: sdkArchBuildDir.path,
+                       environment: nil)
+            
+            let versionPattern = #"version:\s*'([\d.]+)'"#
+            let regex = try NSRegularExpression(pattern: versionPattern)
+            
+            
+            let range = NSRange(text.startIndex..<text.endIndex, in: text)
+                
+            if let match = regex.firstMatch(in: text, options: [], range: range),
+               let versionRange = Range(match.range(at: 1), in: text) {
+                let versionString = String(text[versionRange])
+                return versionString
+            }
+            
+            return nil
+            
+            let install_for_ffmpeg = dav1dBuildDir.appendingPathComponent("install_for_ffmpeg")
+            try removeItem(at: install_for_ffmpeg.path)
+            try createDirectory(at: install_for_ffmpeg.path)
+            
+            let include = install_for_ffmpeg.appendingPathComponent("include").path
+            let lib = install_for_ffmpeg.appendingPathComponent("lib").path
+            try createDirectory(at: include)
+            try createDirectory(at: lib)
+            
+            
+            let pcFile = """
+            prefix=\(install_for_ffmpeg.path)
+            includedir=${prefix}/include
+            libdir=${prefix}/lib
+
+            Name: libdav1d
+            Description: AV1 decoding library
+            Version: 1.2.1
+            Libs: -L${libdir} -ldav1d
+            Cflags: -I${includedir}
+            """
+            try system("""
+                    ln -sf \(prefix.path)/include/* \(include)
+                    ln -sf \(prefix.path)/lib/* \(lib)
+                    """)
         }
-
-        mutating func buildFFmpeg(sourceDirectory: String) throws {
+        
+        mutating func buildFFmpeg(sourceDirectory: String, archx: String, additionalEnvironment: [String : String]? = nil) throws {
             print("buildFFmpeg")
+            
+            try checkSource(lib: "FFmpeg", sourceDirectory: sourceDirectory)
+            
             class FFmpegConfiguration: ConfigurationHelper, Configuration {
-                override var `as`: String { "gas-preprocessor.pl \(aarch64) -- \(cc)" }
-
+                override var `as`: String { "gas-preprocessor.pl \(host) -- \(cc)" }
+                
                 var options: [String] {
                     [
                         "--prefix=\(installPrefix)",
-
+                        
                         "--disable-doc",
                         // to generate dSYM files
                         "--enable-debug",
                         "--disable-programs",
                         "--disable-audiotoolbox",
-
+                        
                         // AOS와 통일
                         "--disable-static",
                         "--disable-ffprobe",
@@ -258,11 +348,11 @@ extension Tool {
                         "--disable-avdevice",
                         "--disable-filters",
                         "--disable-xlib",
-
+                        
                         "--enable-filter=atempo,aresample",
                         "--enable-cross-compile",
                         "--enable-libdav1d",
-
+                        
                         "--target-os=darwin",
                         "--arch=\(arch)",
                         "--cc=\(cc)",
@@ -271,9 +361,16 @@ extension Tool {
                         "--extra-ldflags=\(ldFlags) -L\(installPrefix)/lib",
                     ]
                 }
+                
+//                override var environment: [String : String]? {
+//                    additionalEnvironment
+//                    ["PKG_CONFIG_PATH": "\(URL(fileURLWithPath: ".").path)/dav1d/build_mac_x86/ff_build:$PKG_CONFIG_PATH"]
+//                }
             }
-
-            try buildLibrary(name: "FFmpeg", sourceDirectory: sourceDirectory, arch: buildOptions.arch, deploymentTarget: configureOptions.deploymentTarget, buildDirectory: buildOptions.buildDirectory, configuration: FFmpegConfiguration.self) {
+            
+            try buildLibrary(name: "FFmpeg", sourceDirectory: sourceDirectory, archx: archx, deploymentTarget: configureOptions.deploymentTarget, buildDirectory: buildOptions.buildDirectory, configuration: FFmpegConfiguration.self) {
+                $0.environment = ($0.environment ?? [:]).merging(additionalEnvironment ?? [:]) { (_, new) in new }
+                
                 let platformOptions: [String]
                 switch $0.platform {
                 case "MacOSX":
@@ -297,141 +394,56 @@ extension Tool {
                     + platformOptions
             }
         }
-
-        func buildFdkAac(sourceDirectory: String) throws {
-            class FdkAacConfiguration: ConfigurationHelper, Configuration {
-                override var `as`: String { "\(sourceDirectory)/extras/gas-preprocessor.pl \(aarch64) -- \(cc)" }
-
-                var options: [String] {
-                    [
-                        "--host=\(host(arch))-apple-darwin",
-                        "--prefix=\(installPrefix)",
-                        "--enable-static",
-                        "--disable-shared",
-                        "--with-pic=yes",
-                        "CC=\(cc)",
-                        "CXX=\(cc)",
-                        "CPP=\(cc) -E",
-                        "AS=\(`as`)",
-                        "CFLAGS=\(cFlags)",
-                        "CPPFLAGS=\(cFlags)",
-                        "LDFLAGS=\(ldFlags)",
-                    ]
-                }
-            }
-
-            try buildLibrary(name: "fdk-aac", sourceDirectory: sourceDirectory, arch: buildOptions.arch, deploymentTarget: configureOptions.deploymentTarget, buildDirectory: buildOptions.buildDirectory, configuration: FdkAacConfiguration.self)
-        }
-
-        func buildLame(sourceDirectory: String) throws {
-            class LameConfiguration: ConfigurationHelper, Configuration {
-                override var cc: String { "xcrun -sdk \(sdk) clang -arch \(arch)" }
-
-                var options: [String] {
-                    [
-                        "--host=\(host(arch))-apple-darwin",
-                        "--prefix=\(installPrefix)",
-                        "--disable-frontend",
-                        "--disable-shared",
-                    ]
-                }
-
-                override var environment: [String : String]? {
-                    [
-                        "CC": cc,
-                        "CPP": "\(cc) -E",
-                        "CFLAGS": cFlags,
-                        "LDFLAGS": ldFlags,
-                    ]
-                }
-            }
-
-            try buildLibrary(name: "lame", sourceDirectory: sourceDirectory, arch: buildOptions.arch, deploymentTarget: configureOptions.deploymentTarget, buildDirectory: buildOptions.buildDirectory, configuration: LameConfiguration.self)
-        }
-
-        func buildX264(sourceDirectory: String) throws {
-            class X264Configuration: ConfigurationHelper, Configuration {
-                override var `as`: String { "\(URL(fileURLWithPath: sourceDirectory).path)/tools/gas-preprocessor.pl \(aarch64) -- \(cc)" }
-
-                var options: [String] {
-                    [
-                        "--host=\(host(arch))-apple-darwin",
-                        "--prefix=\(installPrefix)",
-                        "--enable-static",
-                        "--disable-cli",
-                        "--enable-pic",
-                        "--extra-cflags=\(cFlags)",
-                        "--extra-asflags=\(arch.hasPrefix("arm") ? cFlags : "")",
-                        "--extra-ldflags=\(ldFlags)",
-                    ]
-                }
-
-                override var environment: [String : String]? {
-                    var env = [
-                        "CC": cc,
-                    ]
-                    if arch.hasPrefix("arm") {
-                        env["AS"] = `as`
-                    }
-                    return env
-                }
-            }
-
-            try buildLibrary(name: "x264", sourceDirectory: sourceDirectory, arch: buildOptions.arch, deploymentTarget: configureOptions.deploymentTarget, buildDirectory: buildOptions.buildDirectory, configuration: X264Configuration.self)
-        }
-
-        func buildLibrary<T>(name: String, sourceDirectory: String, arch: [String], deploymentTarget: String, buildDirectory: String, configuration: T.Type, customize: (T) -> [String] = { $0.options }) throws where T: Configuration {
+        
+        func buildLibrary<T>(name: String, sourceDirectory: String, archx: String, deploymentTarget: String, buildDirectory: String, configuration: T.Type, customize: (T) -> [String] = { $0.options }) throws where T: Configuration {
             let buildDir = URL(fileURLWithPath: buildDirectory)
                 .appendingPathComponent(name)
-            for archx in arch {
-                print("building \(archx)...")
-                let archDir = buildDir.appendingPathComponent(archx)
-                try createDirectory(at: archDir.path)
-
-                let prefix = buildDir
-                    .deletingLastPathComponent()
-                    .appendingPathComponent("install")
-                    .appendingPathComponent(name)
-                    .appendingPathComponent(archx)
-
-                let array = archx.split(separator: "-")
-                let platform: String?
-                if array.count > 1 {
-                    if array[1] == "catalyst" {
-                        platform = "MacOSX"
-                    } else {
-                        platform = String(array[1])
-                    }
-                } else {
-                    platform = nil
-                }
-                let conf = T(sourceDirectory: sourceDirectory, arch: String(array[0]), platform: platform, deploymentTarget: deploymentTarget, installPrefix: prefix.path)
-                let options = customize(conf)
-                try launch(launchPath: "\(sourceDirectory)/configure",
-                           arguments: options,
-                           currentDirectoryPath: archDir.path,
-                           environment: conf.environment)
-
-                try launch(launchPath: "/usr/bin/make",
-                           arguments: [
-                            "-j3",
-                            "install",
-                           ], // FIXME: GASPP_FIX_XCODE5=1 ?
-                           currentDirectoryPath: archDir.path)
-
-                let all = buildDir
-                    .deletingLastPathComponent()
-                    .appendingPathComponent("install")
-                    .appendingPathComponent(archx)
-                let include = all.appendingPathComponent("include").path
-                let lib = all.appendingPathComponent("lib").path
-                try createDirectory(at: include)
-                try createDirectory(at: lib)
-                try system("""
+            
+            print("building \(archx)...")
+            let archDir = buildDir.appendingPathComponent(archx)
+            try createDirectory(at: archDir.path)
+            
+            let prefix = buildDir
+                .deletingLastPathComponent()
+                .appendingPathComponent("install")
+                .appendingPathComponent(name)
+                .appendingPathComponent(archx)
+            
+            let array = archx.split(separator: "-")
+            let platform: String?
+            if array.count > 1 {
+                platform = String(array[1])
+            } else {
+                platform = nil
+            }
+            
+            let conf = T(sourceDirectory: sourceDirectory, arch: String(array[0]), platform: platform, deploymentTarget: deploymentTarget, installPrefix: prefix.path)
+            
+            let options = customize(conf)
+            try launch(launchPath: "\(sourceDirectory)/configure",
+                       arguments: options,
+                       currentDirectoryPath: archDir.path,
+                       environment: conf.environment)
+            
+            try launch(launchPath: "/usr/bin/make",
+                       arguments: [
+                        "-j3",
+                        "install",
+                       ], // FIXME: GASPP_FIX_XCODE5=1 ?
+                       currentDirectoryPath: archDir.path)
+            
+            let all = buildDir
+                .deletingLastPathComponent()
+                .appendingPathComponent("install")
+                .appendingPathComponent(archx)
+            let include = all.appendingPathComponent("include").path
+            let lib = all.appendingPathComponent("lib").path
+            try createDirectory(at: include)
+            try createDirectory(at: lib)
+            try system("""
                     ln -sf \(prefix.path)/include/* \(include)
                     ln -sf \(prefix.path)/lib/* \(lib)
                     """)
-            }
         }
     }
 
@@ -483,6 +495,8 @@ extension Tool {
             switch sourceOptions.lib {
             case "FFmpeg":
                 return "http://www.ffmpeg.org/releases/ffmpeg-\(downloadOptions.release).tar.bz2"
+            case "dav1d":
+                return "https://github.com/videolan/dav1d/archive/refs/tags/\(downloadOptions.dav1d_version).tar.gz"
             case "fdk-aac":
                 return "https://sourceforge.net/projects/opencore-amr/files/latest/download"
             case "lame":
@@ -493,10 +507,10 @@ extension Tool {
                 fatalError("unknown library: \(sourceOptions.lib)")
             }
         }
-
+        
         func run() throws {
             let url = downloadOptions.url ?? defaultURL
-            let t = "/tmp/ffmpeg-ios"
+            let t = "/tmp/\(sourceOptions.lib)"
             // FIXME: J for .xz
             try system("""
                 mkdir \(t)
@@ -504,50 +518,6 @@ extension Tool {
                 mv \(t)/* \(sourceOptions.sourceURL.path)
                 rmdir \(t)
                 """)
-        }
-    }
-
-    struct LibCommand: ParsableCommand {
-        static var configuration = CommandConfiguration(commandName: "lib", abstract: "Build a library")
-        func run() throws {
-            // FIXME: ...
-        }
-    }
-
-    struct FatCommand: ParsableCommand {
-        static var configuration = CommandConfiguration(commandName: "fat", abstract: "Create fat library")
-
-        @OptionGroup var libraryOptions: LibraryOptions
-
-        @OptionGroup var buildOptions: BuildOptions
-
-        @OptionGroup var fatLibraryOptions: FatLibraryOptions
-
-        @OptionGroup var sourceOptions: SourceOptions
-
-        mutating func run() throws {
-            let output = URL(fileURLWithPath: fatLibraryOptions.output ?? (sourceOptions.lib + "-fat"))
-            try createDirectory(at: output.appendingPathComponent("lib").path)
-
-            let installDir = URL(fileURLWithPath: buildOptions.buildDirectory)
-                .appendingPathComponent("install")
-                .appendingPathComponent(sourceOptions.lib)
-            try system("""
-                cd \(installDir.path)/\(buildOptions.arch[0])/lib
-                for LIB in *.a
-                do
-                    lipo `find \(installDir.path) -name $LIB` -create -output \(output.path)/lib/$LIB
-                done
-                """)
-
-            let to = output.appendingPathComponent("include")
-
-            try removeItem(at: to.path)
-
-            try copyItem(at: installDir
-                            .appendingPathComponent(buildOptions.arch[0])
-                            .appendingPathComponent("include").path,
-                         to: to.path)
         }
     }
 
@@ -618,130 +588,130 @@ extension Tool {
 
     struct XCFrameworkCommand: ParsableCommand {
         static var configuration = CommandConfiguration(commandName: "framework", abstract: "Create .xcframework")
-
+        
         var isDynamic: Bool = false
-
+        
         @OptionGroup var libraryOptions: LibraryOptions
-
+        
         @OptionGroup var buildOptions: BuildOptions
-
+        
         @OptionGroup var xcframeworkOptions: XCFrameworkOptions
-
+        
         @OptionGroup var sourceOptions: SourceOptions
-
+        
         func run() throws {
             let lib = URL(fileURLWithPath: buildOptions.buildDirectory).appendingPathComponent("install").appendingPathComponent(sourceOptions.lib)
             let contents = try FileManager.default.contentsOfDirectory(at: lib.appendingPathComponent(buildOptions.arch[0]).appendingPathComponent("lib"), includingPropertiesForKeys: nil, options: [])
-//            print("contents = \(contents)")
-
+            //            print("contents = \(contents)")
+            
             var contentsStringSet = Set<String>()
             contents
                 .filter { $0.pathExtension == "dylib" }
                 .map { $0.resolvingSymlinksInPath() }
                 .map { $0.deletingPathExtension().lastPathComponent.replacingOccurrences(of: "lib", with: "") }
                 .forEach { contentsStringSet.insert($0) }
-
+            
             let modules: [String] = Array<String>(contentsStringSet)
-
-//            print("contentsStringSet = \(contentsStringSet)")
-//            print("nameResult = \(contentsStringSet.compactMap { $0.components(separatedBy: ".").first })")
-
-//            let predefinedModule = ["avcodec", "avdevice", "avfilter", "avformat", "avutil", "swresample", "swscale"]
-//            for pm in predefinedModule {
-//                if contentsStringSet.contains(pm) {
-//                    modules.append(pm)
-//                    continue
-//                }
-//            }
-
+            
+            //            print("contentsStringSet = \(contentsStringSet)")
+            //            print("nameResult = \(contentsStringSet.compactMap { $0.components(separatedBy: ".").first })")
+            
+            //            let predefinedModule = ["avcodec", "avdevice", "avfilter", "avformat", "avutil", "swresample", "swscale"]
+            //            for pm in predefinedModule {
+            //                if contentsStringSet.contains(pm) {
+            //                    modules.append(pm)
+            //                    continue
+            //                }
+            //            }
+            
             print("modules = \(modules)")
-
+            
             for library in modules {
                 func convert(_ arch: String) -> String {
                     let array = arch.split(separator: "-")
                     if array.count > 1 {
                         return array[1].lowercased()
                     }
-
+                    
                     switch arch {
                     case "arm64", "armv7":
                         return "iphoneos"
                     case "x86_64":
-                        return "iphonesimulator"
+                        return "macos"
                     default:
                         fatalError()
                     }
                 }
-
+                
                 var dict: [String: Set<String>] = [:]
-
+                
                 for arch in buildOptions.arch {
                     let sdk = convert(arch)
                     var set = dict[sdk] ?? []
                     set.insert(arch)
                     dict[sdk] = set
                 }
-
+                
                 var args: [String] = []
-
+                
                 let libraryNameWithoutVersion = library.components(separatedBy: ".").first!
-
+                
                 for (sdk, set) in dict {
                     guard let arch = set.first else {
                         fatalError()
                     }
                     let dir = "\(lib.path)/\(arch)"
-
+                    
                     let xcf = "\(buildOptions.buildDirectory)/xcf/\(sdk)"
                     try createDirectory(at: xcf)
-
+                    
                     let fat = "\(xcf)/lib\(libraryNameWithoutVersion).dylib"
-
+                    
                     try launch(launchPath: "/usr/bin/lipo",
                                arguments:
                                 set.map { arch in "\(lib.path)/\(arch)/lib/lib\(library).dylib" }
-                                + [
-                                    "-create",
-                                    "-output",
-                                    fat,
-                                ])
-
+                               + [
+                                "-create",
+                                "-output",
+                                fat,
+                               ])
+                    
                     let include: String
                     if modules.count > 1 {
                         include = "\(xcf)/\(libraryNameWithoutVersion)/include"
                         try removeItem(at: include)
                         try createDirectory(at: include)
-
+                        
                         let copy = "\(include)/lib\(libraryNameWithoutVersion)"
                         try removeItem(at: copy)
                         try copyItem(at: "\(dir)/include/lib\(libraryNameWithoutVersion)", to: copy)
                     } else {
                         include = "\(dir)/include"
                     }
-
+                    
                     args += [
                         "-library", fat,
                         "-headers", include,
                     ]
                 }
-
+                
                 let output = "\(xcframeworkOptions.frameworks)/\(libraryNameWithoutVersion).xcframework"
-
+                
                 try removeItem(at: output)
-
+                
                 try launch(launchPath: "/usr/bin/xcodebuild",
                            arguments:
                             ["-create-xcframework"]
-                            + args
-                            + [
-                                "-output", output,
-                            ])
-
+                           + args
+                           + [
+                            "-output", output,
+                           ])
+                
                 // Create dSYM files
                 let fileManager = FileManager.default
                 do {
                     let items = try fileManager.contentsOfDirectory(atPath: output)
-
+                    
                     for item in items {
                         var isDirectory: ObjCBool = false
                         let itemPath = "\(output)/\(item)"
@@ -765,97 +735,7 @@ extension Tool {
             }
         }
     }
-
-    struct ZipCommand: ParsableCommand {
-        static var configuration = CommandConfiguration(commandName: "zip", abstract: "Zip .xcframework")
-
-        @OptionGroup var xcframeworkOptions: XCFrameworkOptions
-
-        func run() throws {
-            let contents = try FileManager.default.contentsOfDirectory(at: URL(fileURLWithPath: xcframeworkOptions.frameworks), includingPropertiesForKeys: nil)
-            let frameworks = contents.filter { $0.pathExtension == "xcframework" }.map { $0.deletingPathExtension().lastPathComponent }
-
-            for framework in frameworks {
-                try system("cd \(xcframeworkOptions.frameworks) && rm -f \(framework).zip; zip -r \(framework).zip \(framework).xcframework")
-            }
-        }
-    }
-
-    struct ModuleCommand: ParsableCommand {
-        static var configuration = CommandConfiguration(commandName: "module", abstract: "Enable modules to allow import from Swift")
-
-        @OptionGroup var libraryOptions: LibraryOptions
-
-        @OptionGroup var buildOptions: BuildOptions
-
-        @OptionGroup var xcframeworkOptions: XCFrameworkOptions
-
-        @OptionGroup var sourceOptions: SourceOptions
-
-        func run() throws {
-            let lib = URL(fileURLWithPath: buildOptions.buildDirectory).appendingPathComponent("install").appendingPathComponent(sourceOptions.lib)
-            let contents = try FileManager.default.contentsOfDirectory(at: lib.appendingPathComponent(buildOptions.arch[0]).appendingPathComponent("lib"), includingPropertiesForKeys: nil, options: [])
-//            print("contents = \(contents)")
-
-            var contentsStringSet = Set<String>()
-            contents
-                .filter { $0.pathExtension == "dylib" }
-                .map { $0.resolvingSymlinksInPath() }
-                .map { $0.deletingPathExtension().lastPathComponent.replacingOccurrences(of: "lib", with: "") }
-                .forEach { contentsStringSet.insert($0) }
-
-            let modules: [String] = Array<String>(contentsStringSet.compactMap { $0.components(separatedBy: ".").first })
-
-//            let lib = URL(fileURLWithPath: buildOptions.buildDirectory).appendingPathComponent("install").appendingPathComponent(sourceOptions.lib)
-//            let contents = try FileManager.default.contentsOfDirectory(at: lib.appendingPathComponent(buildOptions.arch[0]).appendingPathComponent("lib"), includingPropertiesForKeys: nil, options: [])
-//            let modules = contents.filter { $0.pathExtension == "a" }.map { $0.deletingPathExtension().lastPathComponent.replacingOccurrences(of: "lib", with: "") }
-
-            for library in modules {
-                let path = "\(xcframeworkOptions.frameworks)/\(library).xcframework"
-                let data = try Data(contentsOf: URL(fileURLWithPath: "\(path)/Info.plist"))
-                guard let info = try PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any],
-                      let libraries = info["AvailableLibraries"] as? [[String: Any]] else {
-                    throw ExitCode.failure
-                }
-
-                for dict in libraries {
-                    guard let headersPath = dict["HeadersPath"] as? String,
-                          let libraryIdentifier = dict["LibraryIdentifier"] as? String else {
-                        throw ExitCode.failure
-                    }
-
-                    let to = URL(fileURLWithPath: "\(path)/\(libraryIdentifier)/\(headersPath)/lib\(library)/module.modulemap")
-
-                    try createDirectory(at: to.deletingLastPathComponent().path)
-
-                    try removeItem(at: to.path)
-
-                    do {
-                        try copyItem(at: "ModuleMaps/\(library)/module.modulemap",
-                                     to: to.path)
-                    }
-                    catch {
-                        let nserror = error as NSError
-                        guard let posixError = nserror.userInfo[NSUnderlyingErrorKey] as? POSIXError,
-                              posixError.code == .ENOENT
-                        else {
-                            print(#line, error)
-                            throw error
-                        }
-
-                        let content = """
-                            module \(library) {
-                                umbrella "."
-                                export *
-                            }
-                            """
-                        try content.write(to: to, atomically: false, encoding: .utf8)
-                    }
-                }
-            }
-        }
-    }
-
+    
     struct Lipo: ParsableCommand {
         @Argument
         var input: String
@@ -875,12 +755,6 @@ extension Tool {
                         "-output",
                         output,
                        ])
-        }
-    }
-
-    struct Clean: ParsableCommand {
-        func run() throws {
-            // FIXME: ...
         }
     }
 }
@@ -904,10 +778,13 @@ func launch(launchPath: String, arguments: [String], currentDirectoryPath: Strin
         }
         print("current directory:", path)
     }
-
+    
+    var currentEnv = ProcessInfo.processInfo.environment
+//    print("current environment:", currentEnv)
     environment.map { environment in
-        process.environment = environment
-        print("environment:", environment)
+        currentEnv.merge(environment) { (_, new) in new }
+        process.environment = currentEnv
+//        print("environment:", currentEnv)
     }
 
     print(launchPath, arguments)
@@ -945,8 +822,40 @@ func removeItem(at path: String) throws {
             throw error
         }
     }
-
 }
+
+func escapeShellArgument(_ argument: String) -> String {
+    var escapedArgument = ""
+    let charactersToEscape: Set<Character> = [" ", "\t", "\n", "\"", "'", "$", "&", "`", "(", ")", "<", ">", "|", ";", "*", "?", "{", "}", "[", "]", "\\", "~", "#", "=", "%"]
+
+    for char in argument {
+        if charactersToEscape.contains(char) {
+            escapedArgument.append("\\")
+        }
+        escapedArgument.append(char)
+    }
+
+    return escapedArgument
+}
+
+func whichPath(_ command: String) throws -> String {
+    let task = Process()
+    task.launchPath = "/bin/zsh"
+    task.arguments = ["-c", "which \(command)"]
+
+    let pipe = Pipe()
+    task.standardOutput = pipe
+
+    task.launch()
+    task.waitUntilExit()
+
+    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    guard let launchPath = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .newlines) else {
+        throw ExitCode.failure
+    }
+    return launchPath
+}
+
 func which(_ command: String) -> Bool {
     do {
         try system("which \(command)")
@@ -989,8 +898,7 @@ func spawn(_ args: [String]) throws {
     }
 }
 
-// FIXME: rename
-func host(_ arch: String) -> String {
+func getHost(from arch: String) -> String {
     switch arch {
     case "armv7":
         return "arm"
@@ -1004,7 +912,7 @@ func host(_ arch: String) -> String {
 protocol Configuration {
     var options: [String] { get }
 
-    var environment: [String: String]? { get }
+    var environment: [String: String]? { get set }
 
     init(sourceDirectory: String, arch: String, platform: String?, deploymentTarget: String, installPrefix: String)
 }
@@ -1018,11 +926,11 @@ class ConfigurationHelper {
 
     var sdk: String { platform.lowercased() }
 
-    var cc: String { "xcrun -sdk \(sdk) clang" }
+    var cc: String { "xcrun -sdk \(sdk) clang -arch \(arch)" }
 
-    var aarch64: String { arch == "arm64" ? "-arch aarch64" : "" }
+    var host: String { "-arch \(getHost(from: arch))" }
 
-    var `as`: String { "\(sourceDirectory)/extras/gas-preprocessor.pl \(aarch64) -- \(cc)" }
+    var `as`: String { "\(sourceDirectory)/extras/gas-preprocessor.pl \(host) -- \(cc)" }
 
     var cFlags: String
 
@@ -1030,7 +938,7 @@ class ConfigurationHelper {
 
     let installPrefix: String
 
-    var environment: [String: String]? { nil }
+    var environment: [String: String]?
 
     required init(sourceDirectory: String, arch: String, platform: String? = nil, deploymentTarget: String, installPrefix: String) {
         self.sourceDirectory = sourceDirectory
@@ -1044,7 +952,7 @@ class ConfigurationHelper {
         } else {
             switch arch {
             case "x86_64", "i386":
-                self.platform = "iPhoneSimulator"
+                self.platform = "MacOS"
             default:
                 self.platform = "iPhoneOS"
             }
@@ -1054,12 +962,11 @@ class ConfigurationHelper {
         case "iPhoneSimulator":
             cFlags.append(" -mios-simulator-version-min=\(deploymentTarget)")
         case "iPhoneOS":
-//            cFlags.append(" -mios-version-min=\(deploymentTarget) -fembed-bitcode")
             cFlags.append(" -mios-version-min=\(deploymentTarget)")
         case "MacOSX":
-            cFlags.append(" -mios-version-min=\(deploymentTarget) -target \(arch)-apple-ios-macabi")
+            cFlags.append(" -mmacos-version-min=\(deploymentTarget)")
         case "AppleTVOS":
-            cFlags.append(" -mtvos-version-min=\(deploymentTarget) -fembed-bitcode")
+            cFlags.append(" -mtvos-version-min=\(deploymentTarget)")
         case "AppleTVSimulator":
             cFlags.append(" -mtvos-simulator-version-min=\(deploymentTarget)")
         default:
