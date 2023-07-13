@@ -8,7 +8,14 @@
 import ArgumentParser
 import Foundation
 
+/// for av1 decoder dav1d
+var isDav1dBuildIncluded: Bool = true
+
+/// dynamic library build
+var isDynamic: Bool = true
+
 struct Tool: ParsableCommand {
+    
     static var configuration = CommandConfiguration(
         commandName: "ffmpeg",
         abstract: "Build FFmpeg libraries for iOS & MacOS as xcframeworks",
@@ -133,16 +140,7 @@ extension Tool {
     struct BuildCommand: ParsableCommand {
         static var configuration = CommandConfiguration(commandName: "build", abstract: "Build framework module")
         
-        /// for av1 decoder dav1d
-        var isDav1dBuildIncluded: Bool = true
         
-        var isDynamic: Bool = true
-        
-        @Flag(help: "Create fat library instead of .xcframework")
-        var disableXcframework = false
-        
-//        @Flag
-        var disableZip = true
         
         @OptionGroup var sourceOptions: SourceOptions
         @OptionGroup var buildOptions: BuildOptions
@@ -388,9 +386,7 @@ extension Tool {
                     configureOptions.extraOptions = configureOptions.extraOptions + ["--enable-libdav1d", "--disable-xlib"]
                 }
                 
-                if isDynamic {
-                    configureOptions.extraOptions = configureOptions.extraOptions + (isDynamic ? ["--disable-static", "--enable-shared"] : [])
-                }
+                configureOptions.extraOptions = configureOptions.extraOptions + (isDynamic ? ["--disable-static", "--enable-shared"] : [])
                 
                 return $0.options
                     + configureOptions.extraOptions
@@ -476,8 +472,11 @@ extension Tool {
             try installWithHomebrew("yasm")
             try installWithHomebrew("nasm")
             
-            // for dav1d
-            try installWithHomebrew("meson")
+            if isDav1dBuildIncluded {
+                // for dav1d
+                try installWithHomebrew("meson")
+                try installWithHomebrew("ninja")
+            }
 
             if !which("gas-preprocessor.pl") {
                 print("'gas-preprocessor.pl' not found. Trying to install...")
@@ -592,8 +591,6 @@ extension Tool {
 
     struct XCFrameworkCommand: ParsableCommand {
         static var configuration = CommandConfiguration(commandName: "framework", abstract: "Create .xcframework")
-        
-        var isDynamic: Bool = false
         
         @OptionGroup var libraryOptions: LibraryOptions
         
@@ -765,123 +762,9 @@ extension Tool {
                 
                 try createXCFrameworks($0, args: args)
             }
-            
-//            for library in modules {
-//
-//                var dict: [String: Set<String>] = [:]
-//
-//                for arch in buildOptions.arch {
-//                    let sdk = convert(arch)
-//                    var set = dict[sdk] ?? []
-//                    set.insert(arch)
-//                    dict[sdk] = set
-//                }
-//
-//
-//                let libraryNameWithoutVersion = library.components(separatedBy: ".").first!
-//
-//                for (sdk, set) in dict {
-//                    guard let arch = set.first else {
-//                        fatalError()
-//                    }
-//                    let dir = "\(lib.path)/\(arch)"
-//
-//                    let xcf = "\(buildOptions.buildDirectory)/xcf/\(sdk)"
-//                    try createDirectory(at: xcf)
-//
-//                    let fat = "\(xcf)/lib\(libraryNameWithoutVersion).dylib"
-//
-//                    try launch(launchPath: "/usr/bin/lipo",
-//                               arguments:
-//                                set.map { arch in "\(lib.path)/\(arch)/lib/lib\(library).dylib" }
-//                               + [
-//                                "-create",
-//                                "-output",
-//                                fat,
-//                               ])
-//
-//                    let include: String
-//                    if modules.count > 1 {
-//                        include = "\(xcf)/\(libraryNameWithoutVersion)/include"
-//                        try removeItem(at: include)
-//                        try createDirectory(at: include)
-//
-//                        let copy = "\(include)/lib\(libraryNameWithoutVersion)"
-//                        try removeItem(at: copy)
-//                        try copyItem(at: "\(dir)/include/lib\(libraryNameWithoutVersion)", to: copy)
-//                    } else {
-//                        include = "\(dir)/include"
-//                    }
-//
-//                    args += [
-//                        "-library", fat,
-//                        "-headers", include,
-//                    ]
-//                }
-//
-//                let output = "\(xcframeworkOptions.frameworks)/\(libraryNameWithoutVersion).xcframework"
-//
-//                try removeItem(at: output)
-//
-//                try launch(launchPath: "/usr/bin/xcodebuild",
-//                           arguments:
-//                            ["-create-xcframework"]
-//                           + args
-//                           + [
-//                            "-output", output,
-//                           ])
-//
-//                // Create dSYM files
-//                let fileManager = FileManager.default
-//                do {
-//                    let items = try fileManager.contentsOfDirectory(atPath: output)
-//
-//                    for item in items {
-//                        var isDirectory: ObjCBool = false
-//                        let itemPath = "\(output)/\(item)"
-//                        if fileManager.fileExists(atPath: itemPath, isDirectory: &isDirectory) {
-//                            if isDirectory.boolValue {
-//                                let source = "\(output)/\(item)/lib\(libraryNameWithoutVersion).dylib"
-//                                try launch(launchPath: "/usr/bin/xcrun",
-//                                           arguments: ["dsymutil"]
-//                                           + ["\(source)"]
-//                                           + ["-o", "\(output)/\(item)/dSYMs/lib\(libraryNameWithoutVersion).dylib.dSYM"])
-//                                try launch(launchPath: "/usr/bin/xcrun",
-//                                           arguments: ["strip"]
-//                                           + ["-S", "\(source)"])
-//                            }
-//                        }
-//                    }
-//                }
-//                catch {
-//                    print("failed to create dSYMs")
-//                }
-//            }
         }
     }
     
-//    struct Lipo: ParsableCommand {
-//        @Argument
-//        var input: String
-//
-//        @Option
-//        var arch: String
-//
-//        @Option
-//        var output: String
-//
-//        func run() throws {
-//            try launch(launchPath: "/usr/bin/lipo",
-//                       arguments: [
-//                        input,
-//                        "-thin",
-//                        arch,
-//                        "-output",
-//                        output,
-//                       ])
-//        }
-//    }
-
     struct TeslaPatchCommmand: ParsableCommand {
         func run() throws {
             do {
