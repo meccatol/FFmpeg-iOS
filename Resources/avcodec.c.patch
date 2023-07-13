@@ -1,0 +1,60 @@
+
+// added by K.Y.H
+
+int avcodec_get_buffer(AVCodecContext *avctx, AVFrame *frame, int flags);
+int avcodec_get_buffer(AVCodecContext *avctx, AVFrame *frame, int flags)
+{
+	return ff_get_buffer(avctx, frame, flags);
+}
+
+#include "mpegaudiodecheader.h"
+int avcodec_mpa_decode_header(uint32_t head, int *sample_rate,
+                         int *channels, int *frame_size, int *bitrate, enum AVCodecID *codec_id);
+int avcodec_mpa_decode_header(uint32_t head, int *sample_rate,
+                         int *channels, int *frame_size, int *bitrate, enum AVCodecID *codec_id)
+{
+	return ff_mpa_decode_header(head, sample_rate, channels, frame_size, bitrate, codec_id);
+}
+
+#include "ac3_parser_internal.h"
+int avcodec_ac3_parse_header(GetBitContext *gbc, AC3HeaderInfo *hdr);
+int avcodec_ac3_parse_header(GetBitContext *gbc, AC3HeaderInfo *hdr)
+{
+	return ff_ac3_parse_header(gbc, hdr);
+}
+
+#include "h264_parse.h"
+int avcodec_h264_decode_extradata(const uint8_t *data, int size, H264ParamSets *ps,
+                             int *is_avc, int *nal_length_size,
+                             int err_recognition, void *logctx);
+int avcodec_h264_decode_extradata(const uint8_t *data, int size, H264ParamSets *ps,
+                             int *is_avc, int *nal_length_size,
+                             int err_recognition, void *logctx)
+{
+	return avcodec_h264_decode_extradata(data, size, ps, is_avc, nal_length_size, err_recognition, logctx);
+}
+
+#include "h264_ps.h"
+void avcodec_h264_ps_uninit(H264ParamSets *ps);
+void avcodec_h264_ps_uninit(H264ParamSets *ps)
+{
+	ff_h264_ps_uninit(ps);
+}
+
+#include "hevc_parse.h"
+int avcodec_hevc_decode_extradata(const uint8_t *data, int size, HEVCParamSets *ps,
+                             HEVCSEI *sei, int *is_nalff, int *nal_length_size,
+                             int err_recognition, int apply_defdispwin, void *logctx);
+int avcodec_hevc_decode_extradata(const uint8_t *data, int size, HEVCParamSets *ps,
+                             HEVCSEI *sei, int *is_nalff, int *nal_length_size,
+                             int err_recognition, int apply_defdispwin, void *logctx)
+{
+	return ff_hevc_decode_extradata(data, size, ps, sei, is_nalff, nal_length_size, err_recognition, apply_defdispwin, logctx);
+}
+
+#include "hevc_ps.h"
+void avcodec_hevc_ps_uninit(HEVCParamSets *ps);
+void avcodec_hevc_ps_uninit(HEVCParamSets *ps)
+{
+	ff_hevc_ps_uninit(ps);
+}
