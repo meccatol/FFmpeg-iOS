@@ -19,9 +19,10 @@ objc_args = ['-mmacos-version-min=11.0']
 objcpp_args = ['-mmacos-version-min=11.0']
 
 [properties]
-root = '/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer'
+root = '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer'
 has_function_printf = true
 has_function_hfkerhisadf = false
+needs_exe_wrapper = true
 
 [host_machine]
 system = 'darwin'

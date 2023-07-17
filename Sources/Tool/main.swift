@@ -66,7 +66,9 @@ struct BuildOptions: ParsableArguments {
             switch buildTarget {
             case .ios:
                 buildDirectory = "./build_ios"
-                arch = ["arm64-iPhoneOS"]
+                arch = ["arm64-iPhoneSimulator",
+                        "x86_64-iPhoneSimulator",
+                        "arm64-iPhoneOS"]
             case .macos:
                 buildDirectory = "./build_macos"
                 arch = [
@@ -629,9 +631,9 @@ extension Tool {
             func setArgsByArchx(with module: String, args: inout [String]) throws {
                 print("setArgsByArchx \(module)..")
                 
-                if buildOptions.arch.count == 1 {
-                    print("single arch..")
-                    let archx = buildOptions.arch[0]
+                var platformArchxsDict: [String: Set<String>] = [:]
+                
+                for archx in buildOptions.arch {
                     print("when \(archx)...")
                     let array = archx.split(separator: "-")
                     
@@ -639,96 +641,93 @@ extension Tool {
                     guard array.count == 2 else {
                         throw ExitCode.failure
                     }
-                    let platform = String(array[1]).lowercased()
+                    let _platform = String(array[1]).lowercased()
                     
-                    let output = buildOptions.installURL(with: sourceOptions.lib)
-                        .appendingPathComponent(archx)
-                    
-                    let lib = output.appendingPathComponent("lib")
-                    let include = output.appendingPathComponent("include")
-                        .appendingPathComponent(sourceOptions.includePrefix + module)
-                    
-                    let xcf = URL(fileURLWithPath: buildOptions.buildDirectory)
-                        .appendingPathComponent("xcf")
-                        .appendingPathComponent(platform)
-                    
-                    try createDirectory(at: xcf.path)
-                    
-                    let xcfInclude = xcf
-                        .appendingPathComponent("\(module)_include")
-                    
-                    try createDirectory(at: xcfInclude.path)
-                    
-                    try system("""
-                            cp -r \(include.path) \(xcfInclude.path)
-                            """)
-                    
-                    args += [
-                        "-library", lib.appendingPathComponent("lib\(module).dylib").path,
-                        "-headers", xcfInclude.path
-                    ]
-                } else {
-                    print("multi arch..")
-                    
-                    var platform: String = ""
-                    var archs: [String] = []
-                    
-                    for archx in buildOptions.arch {
+                    var archxs = platformArchxsDict[_platform] ?? []
+                    archxs.insert(archx)
+                    platformArchxsDict[_platform] = archxs
+                }
+                
+                for (platform, archxs) in platformArchxsDict {
+                    if archxs.count == 1 {
+                        print("single arch..")
+                        let archx = archxs.first!
                         print("when \(archx)...")
-                        let array = archx.split(separator: "-")
                         
-                        // ex) x86_64-MacOSX
-                        guard array.count == 2 else {
-                            throw ExitCode.failure
+                        let output = buildOptions.installURL(with: sourceOptions.lib)
+                            .appendingPathComponent(archx)
+                        
+                        let lib = output.appendingPathComponent("lib")
+                        let include = output.appendingPathComponent("include")
+                            .appendingPathComponent(sourceOptions.includePrefix + module)
+                        
+                        let xcf = URL(fileURLWithPath: buildOptions.buildDirectory)
+                            .appendingPathComponent("xcf")
+                            .appendingPathComponent(platform)
+                        
+                        try createDirectory(at: xcf.path)
+                        
+                        let xcfInclude = xcf
+                            .appendingPathComponent("\(module)_include")
+                        
+                        try createDirectory(at: xcfInclude.path)
+                        
+                        try system("""
+                                cp -r \(include.path) \(xcfInclude.path)
+                                """)
+                        
+                        args += [
+                            "-library", lib.appendingPathComponent("lib\(module).dylib").path,
+                            "-headers", xcfInclude.path
+                        ]
+                    } else {
+                        print("multi arch..")
+                        
+                        let output = buildOptions.installURL(with: sourceOptions.lib)
+                        
+                        let firstArchx = archxs.first!
+                        
+                        let include = output
+                            .appendingPathComponent(firstArchx)
+                            .appendingPathComponent("include")
+                            .appendingPathComponent(sourceOptions.includePrefix + module)
+                        
+                        let xcf = URL(fileURLWithPath: buildOptions.buildDirectory)
+                            .appendingPathComponent("xcf")
+                            .appendingPathComponent(platform)
+                        
+                        try createDirectory(at: xcf.path)
+                        
+                        let fat = xcf.appendingPathComponent("lib\(module).dylib")
+                        let fatArgs = archxs.map {
+                            output
+                                .appendingPathComponent($0)
+                                .appendingPathComponent("lib")
+                                .appendingPathComponent("lib\(module).dylib").path
                         }
-                        let _platform = String(array[1]).lowercased()
-                        if platform.isEmpty { platform = _platform }
-                        else if platform != _platform { throw ExitCode.validationFailure }
-                        archs.append(archx)
+                        let xcfInclude = xcf
+                            .appendingPathComponent("\(module)_include")
+                        
+                        try createDirectory(at: xcfInclude.path)
+                        
+                        try system("""
+                                cp -r \(include.path) \(xcfInclude.path)
+                                """)
+                        
+                        try launch(launchPath: "/usr/bin/lipo",
+                                   arguments:
+                                    fatArgs
+                                   + [
+                                    "-create",
+                                    "-output",
+                                    fat.path,
+                                   ])
+                        
+                        args += [
+                            "-library", fat.path,
+                            "-headers", xcfInclude.path,
+                        ]
                     }
-                    
-                    let output = buildOptions.installURL(with: sourceOptions.lib)
-                    
-                    let include = output
-                        .appendingPathComponent(archs[0])
-                        .appendingPathComponent("include")
-                        .appendingPathComponent(sourceOptions.includePrefix + module)
-                    
-                    let xcf = URL(fileURLWithPath: buildOptions.buildDirectory)
-                        .appendingPathComponent("xcf")
-                        .appendingPathComponent(platform)
-                    
-                    try createDirectory(at: xcf.path)
-                    
-                    let fat = xcf.appendingPathComponent("lib\(module).dylib")
-                    let fatArgs = archs.map {
-                        output
-                            .appendingPathComponent($0)
-                            .appendingPathComponent("lib")
-                            .appendingPathComponent("lib\(module).dylib").path
-                    }
-                    let xcfInclude = xcf
-                        .appendingPathComponent("\(module)_include")
-                    
-                    try createDirectory(at: xcfInclude.path)
-                    
-                    try system("""
-                            cp -r \(include.path) \(xcfInclude.path)
-                            """)
-                    
-                    try launch(launchPath: "/usr/bin/lipo",
-                               arguments:
-                                fatArgs
-                               + [
-                                "-create",
-                                "-output",
-                                fat.path,
-                               ])
-                    
-                    args += [
-                        "-library", fat.path,
-                        "-headers", xcfInclude.path,
-                    ]
                 }
             }
             
