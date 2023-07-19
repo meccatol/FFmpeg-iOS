@@ -853,7 +853,7 @@ extension Tool {
                         throw ExitCode.failure
                     }
                     
-                    let to = URL(fileURLWithPath: "\(path)/\(libraryIdentifier)/\(headersPath)/lib\(module)/module.modulemap")
+                    let to = URL(fileURLWithPath: "\(path)/\(libraryIdentifier)/Modules/module.modulemap")
                     
                     try createDirectory(at: to.deletingLastPathComponent().path)
                     
