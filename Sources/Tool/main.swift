@@ -423,6 +423,7 @@ extension Tool {
             
             print("building \(archx)...")
             let archDir = buildDir.appendingPathComponent(archx)
+            try removeItem(at: archDir.path)
             try createDirectory(at: archDir.path)
             
             let prefix = buildOptions.installURL(with: sourceOptions.lib)
@@ -483,6 +484,7 @@ extension Tool {
                 // for dav1d
                 try installWithHomebrew("meson")
                 try installWithHomebrew("ninja")
+                try installWithHomebrew("pkg-config")
             }
 
             if !which("gas-preprocessor.pl") {
